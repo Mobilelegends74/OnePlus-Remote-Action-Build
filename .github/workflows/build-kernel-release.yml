@@ -34,6 +34,12 @@ on:
         description: 'Enter SusFS Branch or commit hash for selected device kernel'
         type: string
         default: ''
+  push:
+    branches:
+      - op15-6.12.23-original-build
+    paths:
+      - '.github/workflows/build-kernel-release.yml'
+      - 'configs/oos16/OP15.json'
 
 jobs:
   set-op-model:
@@ -48,7 +54,7 @@ jobs:
       - name: 📥 Checkout Code (to access configs/)
         uses: actions/checkout@v6
         with:
-          ref: devices
+          ref: op15-6.12.23-original-build
           sparse-checkout: |
             configs/
           sparse-checkout-cone-mode: false
@@ -62,8 +68,11 @@ jobs:
         run: |
           set -euo pipefail
           echo "::group::Matrix generation"
-          input="${{ github.event.inputs.op_model }}"
+          input="${{ github.event.inputs.op_model || 'OP15_oos16' }}"
           ksu_options_raw='${{ github.event.inputs.ksu_options }}'
+          if [ -z "$ksu_options_raw" ]; then
+            ksu_options_raw='[{"type":"ksun","hash":"dev"}]'
+          fi
           
           if ! ksu_options_normalized=$(echo "$ksu_options_raw" | jq -c 'map(if .type then .type |= ascii_upcase | if .hash == null then if .type == "KSUN" then .hash = "dev" elif .type == "KSU" then .hash = "main" else .hash end else . end else error("No type found") end)' 2>&1); then
             echo "::error::ksu_options validation failed: $ksu_options_normalized"
@@ -434,8 +443,8 @@ jobs:
           ksu_type: ${{ matrix.ksu_type }}
           ksu_branch_or_hash: ${{ matrix.ksu_resolved_hash }}
           susfs_commit_hash_or_branch: ${{ matrix.susfs_resolved_hash }}
-          optimize_level: ${{ inputs.optimize_level }}
-          clean: ${{ inputs.clean_build }}
+          optimize_level: ${{ inputs.optimize_level || 'O2' }}
+          clean: ${{ inputs.clean_build || false }}
 
       - name: 📊 Build statistics
         id: build-stat
